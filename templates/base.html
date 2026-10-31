@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Watchless{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Literata:opsz,wght@7..72,400;7..72,600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #ffffff; --panel: #f3f5f8; --ink: #1b1f27; --muted: #5e6675; --rule: #e2e6ec;
+    --tc: #2f5bd3; --tc-bg: #eaf0ff; --ok: #1e8a50; --warn: #a86b12; --warn-bg: #fdf3e1;
+    --ui: "Instrument Sans", system-ui, sans-serif; --read: "Literata", Georgia, serif;
+    --bar: 56px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper: #15181e; --panel: #1b1f27; --ink: #e7eaf0; --muted: #9aa3b2; --rule: #2a303a;
+            --tc: #8fb0ff; --tc-bg: #1d2740; --ok: #5bd08e; --warn: #e8b04b; --warn-bg: #2e2716; }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: calc(var(--bar) + 16px); }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.5 var(--ui); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--tc); outline-offset: 2px; border-radius: 4px; }
+  img { max-width: 100%; }
+  h1, h2, h3 { font-family: var(--ui); font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; }
+  .muted { color: var(--muted); }
+
+  /* buttons and fields */
+  button, .btn { font: 500 14px/1 var(--ui); display: inline-flex; align-items: center; gap: 6px; padding: 10px 14px;
+    border-radius: 8px; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); cursor: pointer; text-decoration: none; white-space: nowrap; }
+  button:hover, .btn:hover { border-color: var(--muted); }
+  .primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .primary:hover { opacity: .9; }
+  .quiet { border-color: transparent; background: transparent; color: var(--muted); }
+  .quiet:hover { color: var(--ink); border-color: var(--rule); }
+  button:disabled { opacity: .5; cursor: progress; }
+  input, textarea { font: 16px/1.4 var(--ui); color: var(--ink); width: 100%; padding: 11px 12px;
+    border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); }
+  input:focus, textarea:focus { outline: none; border-color: var(--tc); box-shadow: 0 0 0 3px var(--tc-bg); }
+  textarea { resize: vertical; }
+
+  /* timecode chips: the one loud thing. Click plays that moment in the docked player */
+  a.tc { font: 600 13px/1 var(--ui); font-variant-numeric: tabular-nums; color: var(--tc); background: var(--tc-bg);
+    text-decoration: none; padding: 4px 8px 4px 7px; border-radius: 999px; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; vertical-align: 1px; }
+  a.tc::before { content: ""; border-left: 6px solid currentColor; border-top: 4px solid transparent; border-bottom: 4px solid transparent; }
+  a.tc:hover, a.tc.playing { background: var(--tc); color: var(--paper); }
+  .ok { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); background: var(--warn-bg); font: 500 12px/1 var(--ui); padding: 4px 7px; border-radius: 4px; white-space: nowrap; }
+
+  dialog.zoom { padding: 0; border: 0; background: transparent; max-width: 96vw; }
+  dialog.zoom img { max-height: 92vh; display: block; border-radius: 6px; cursor: zoom-out; }
+  dialog.zoom::backdrop { background: rgba(10, 12, 16, .85); }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  {% block style %}{% endblock %}
+</style>
+</head>
+<body>
+{% block body %}{% endblock %}
+<dialog class="zoom" id="zoom" onclick="this.close()"><img alt=""></dialog>
+<script>
+  // click a screenshot to see it full size
+  document.addEventListener("click", e => {
+    const img = e.target.closest("article img");
+    if (!img) return;
+    const d = document.getElementById("zoom");
+    d.querySelector("img").src = img.src;
+    d.querySelector("img").alt = img.alt;
+    d.showModal();
+  });
+</script>
+{% block script %}{% endblock %}
+</body>
+</html>

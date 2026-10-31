@@ -1,0 +1,16 @@
+<div class="qa">
+  <p class="q">{{ item.question }}</p>
+  <div class="a{% if not item.in_video %} not-in-video{% endif %}">
+    {{ item.answer_md | md | safe }}
+    {% if item.citations %}
+      <ul class="cites">
+        {% for c in item.citations %}
+          <li><a class="tc" data-t="{{ c.t_s }}" href="{{ at(meta.url, c.t_s) }}">{{ ts(c.t_s) }}</a>
+            <q>{{ c.quote }}</q>
+            {% if c.verified %}<span class="ok" title="Quote found in the captions">✓</span>
+            {% elif c.verified == false %}<span class="warn">⚠ quote not found in captions</span>{% endif %}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+</div>

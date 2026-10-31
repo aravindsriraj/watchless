@@ -1,0 +1,15 @@
+# your guides: personal, and full of frames from other people's videos
+library/
+
+# python / uv
+.venv/
+__pycache__/
+.pytest_cache/
+
+# local agent tooling
+.claude/
+.agents/
+skills-lock.json
+
+.DS_Store
+.env

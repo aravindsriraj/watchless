@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+{% block title %}{{ meta.title }}{% endblock %}
+{% block style %}
+  /* top bar */
+  .bar { position: sticky; top: 0; z-index: 20; height: var(--bar); display: flex; align-items: center; gap: 12px;
+    padding: 0 16px; background: color-mix(in srgb, var(--paper) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--rule); }
+  .back { text-decoration: none; font-weight: 500; font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .back:hover { color: var(--ink); }
+  .back::before { content: ""; width: 7px; height: 7px; border-left: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); }
+  .bar-title { flex: 1; min-width: 0; margin: 0; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .actions { display: flex; gap: 4px; align-items: center; }
+  .more { position: relative; }
+  .more summary { list-style: none; }
+  .more summary::-webkit-details-marker { display: none; }
+  .more[open] .menu { display: grid; }
+  .menu { display: none; position: absolute; right: 0; top: calc(100% + 6px); min-width: 220px; padding: 6px; gap: 2px;
+    background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; box-shadow: 0 12px 32px rgba(15, 20, 30, .14); }
+  .menu .btn, .menu button { width: 100%; justify-content: flex-start; border: 0; }
+  .menu .danger { color: var(--warn); }
+
+  /* reading layout: contents | guide | video + questions */
+  .layout { display: grid; grid-template-columns: 232px minmax(0, 1fr) 420px; }
+  .toc { position: sticky; top: var(--bar); align-self: start; height: calc(100vh - var(--bar)); overflow: auto; padding: 28px 12px 28px 20px; }
+  .toc p { font-size: 13px; color: var(--muted); margin: 0 0 8px 10px; }
+  .toc ol { list-style: none; margin: 0; padding: 0; }
+  .toc a { display: block; text-decoration: none; padding: 8px 10px; border-radius: 6px; font-size: 14px; line-height: 1.35; color: var(--muted); }
+  .toc a:hover { background: var(--panel); color: var(--ink); }
+  .toc a.here { color: var(--ink); background: var(--panel); box-shadow: inset 2px 0 0 var(--tc); }
+  .toc small { display: block; margin-top: 3px; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .toc-inline { display: none; margin: 0 0 24px; border: 1px solid var(--rule); border-radius: 8px; padding: 10px 14px; }
+  .toc-inline summary { cursor: pointer; font-weight: 500; }
+  .toc-inline ol { margin: 8px 0 0; padding-left: 20px; line-height: 1.9; }
+
+  .read { padding: 40px clamp(16px, 4vw, 56px) 120px; min-width: 0; }
+  article { max-width: 68ch; margin: 0 auto; font: 18px/1.7 var(--read); }
+  article h1 { font-size: clamp(28px, 3.2vw, 36px); margin: 0 0 12px; }
+  article h1 + p { font: 14px/1.5 var(--ui); color: var(--muted); }
+  article h1 + p em { font-style: normal; }
+  article blockquote { margin: 16px 0 24px; padding: 12px 16px; border-radius: 8px; background: var(--panel); font: 15px/1.5 var(--ui); color: var(--muted); }
+  article blockquote p { margin: 0; }
+  article h2 { font-size: 23px; margin: 64px 0 8px; }
+  article h2 + p { font: 14px/1.5 var(--ui); color: var(--muted); margin: 0 0 16px; }
+  article ol { padding-left: 1.4em; }
+  article li { margin: 0 0 20px; padding-left: 4px; }
+  article li::marker { font: 600 15px var(--ui); color: var(--muted); }
+  article code { font-size: .86em; background: var(--panel); padding: 1px 5px; border-radius: 4px; }
+  article img { display: block; margin: 14px 0 6px; border-radius: 8px; border: 1px solid var(--rule); cursor: zoom-in; }
+  article img + em { display: block; font: 14px/1.45 var(--ui); font-style: normal; color: var(--muted); margin-bottom: 4px; }
+
+  /* the docked panel */
+  .panel { position: sticky; top: var(--bar); align-self: start; height: calc(100vh - var(--bar)); display: flex; flex-direction: column;
+    border-left: 1px solid var(--rule); background: var(--panel); }
+  .player { aspect-ratio: 16 / 9; background: #000; flex: none; }
+  .player iframe { width: 100%; height: 100%; border: 0; display: block; }
+  .ask-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 6px; }
+  .ask-head h2 { font-size: 15px; margin: 0; }
+  .close-panel { display: none; }
+  .thread { flex: 1; overflow: auto; padding: 4px 16px 12px; }
+  .hint { font-size: 14px; color: var(--muted); margin: 6px 0; }
+  .qa { margin: 14px 0 22px; }
+  .q { margin: 0 0 8px auto; width: fit-content; max-width: 88%; background: var(--ink); color: var(--paper);
+    padding: 9px 13px; border-radius: 14px 14px 4px 14px; font-size: 15px; }
+  .a { font: 15px/1.6 var(--read); }
+  .a p { margin: 0 0 10px; }
+  .a.not-in-video { color: var(--muted); font-style: italic; }
+  .cites { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 8px; font: 13px/1.5 var(--ui); color: var(--muted); }
+  .cites q { font-style: italic; }
+  .pending .a { color: var(--muted); font: 14px var(--ui); }
+  .pending .a::after { content: ""; display: inline-block; width: 1.2em; text-align: left; animation: dots 1.2s steps(4) infinite; }
+  @keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+  .error .a { color: var(--warn); font: 14px var(--ui); }
+  .ask-form { padding: 12px 16px 16px; border-top: 1px solid var(--rule); display: grid; gap: 8px; background: var(--panel); }
+  .ask-form textarea { min-height: 48px; max-height: 160px; }
+  .ask-form .row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--muted); }
+  .open-panel { display: none; }
+
+  /* progress + failure states */
+  .state { max-width: 560px; margin: 0 auto; padding: 56px 16px; }
+  .state img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; background: var(--panel); }
+  .state h1 { font-size: 24px; margin: 20px 0 6px; }
+  .stages { list-style: none; padding: 0; margin: 28px 0; display: grid; gap: 14px; }
+  .stages li { display: flex; gap: 12px; align-items: center; color: var(--muted); }
+  .stages li::before { content: ""; width: 18px; height: 18px; flex: none; border-radius: 50%; border: 1.5px solid var(--rule); box-sizing: border-box; }
+  .stages li.done { color: var(--ink); }
+  .stages li.done::before { background: var(--ok); border-color: var(--ok);
+    mask: none; box-shadow: inset 0 0 0 4px var(--panel); }
+  .stages li.now { color: var(--ink); font-weight: 600; }
+  .stages li.now::before { border-color: var(--tc); border-top-color: transparent; animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-box { margin: 24px 0; padding: 14px 16px; border-radius: 8px; background: var(--warn-bg); color: var(--ink); font-size: 14px; }
+  .error-box code { font-size: 12px; color: var(--muted); display: block; margin-top: 8px; word-break: break-word; }
+  .state .actions { gap: 8px; }
+
+  @media (max-width: 1199px) {
+    .layout { grid-template-columns: minmax(0, 1fr) 380px; }
+    .toc { display: none; }
+    .toc-inline { display: block; }
+  }
+  @media (max-width: 899px) {
+    .layout { display: block; }
+    .panel { position: fixed; inset: auto 0 0 0; top: auto; height: min(88vh, 760px); z-index: 30; border: 0;
+      border-radius: 16px 16px 0 0; box-shadow: 0 -12px 40px rgba(15, 20, 30, .25); transform: translateY(105%); transition: transform .25s ease; }
+    .panel.open { transform: none; }
+    .panel .player { border-radius: 16px 16px 0 0; overflow: hidden; }
+    .close-panel { display: inline-flex; }
+    .open-panel { display: inline-flex; position: fixed; right: 16px; bottom: 16px; z-index: 25; box-shadow: 0 8px 24px rgba(15, 20, 30, .25); }
+    .bar .wide { display: none; }
+    article { font-size: 17px; }
+  }
+  @media print {
+    .bar, .toc, .toc-inline, .panel, .open-panel { display: none !important; }
+    .layout { display: block; } .read { padding: 0; } article { max-width: none; font-size: 11.5pt; }
+    a.tc { background: none; padding: 0; color: #000; } a.tc::before { display: none; }
+    article img { break-inside: avoid; } article h2 { break-after: avoid; }
+  }
+{% endblock %}
+
+{% block body %}
+<header class="bar">
+  <a class="back" href="/">Library</a>
+  <p class="bar-title">{{ meta.title if meta.title != meta.url else "New guide" }}</p>
+  <div class="actions">
+    {% if guide_html %}
+      <a class="btn quiet wide" href="export.zip">Export</a>
+      <button class="quiet wide" type="button" onclick="window.print()">Save as PDF</button>
+    {% endif %}
+    <details class="more">
+      <summary class="btn quiet" aria-label="More actions">More</summary>
+      <div class="menu">
+        <a class="btn" href="/?url={{ meta.url | urlencode }}">New guide from this video</a>
+        <a class="btn" href="{{ meta.url }}" target="_blank" rel="noopener">Open on YouTube</a>
+        {% if guide_html %}
+          <a class="btn" href="export.zip">Export Markdown + images</a>
+          <button type="button" onclick="window.print()">Save as PDF</button>
+        {% endif %}
+        <form method="post" action="delete" onsubmit="return confirm('Remove this guide and its screenshots? This can\'t be undone.')">
+          <button class="danger" type="submit">Remove guide</button>
+        </form>
+      </div>
+    </details>
+  </div>
+</header>
+
+{% if guide_html %}
+<div class="layout">
+  <nav class="toc" aria-label="Contents">
+    <p>Contents</p>
+    <ol>
+      {% for s in toc %}
+        <li><a href="#{{ s.id }}" data-id="{{ s.id }}">{{ s.name | safe }}
+          <small>{{ ts(s.t) }}{% if s.n %} &nbsp; {% if s.ok == s.n %}<span class="ok">✓</span> all checked{% else %}{{ s.ok }}/{{ s.n }} checked{% endif %}{% endif %}</small></a></li>
+      {% endfor %}
+    </ol>
+  </nav>
+
+  <main class="read">
+    <details class="toc-inline">
+      <summary>Contents</summary>
+      <ol>{% for s in toc %}<li><a href="#{{ s.id }}">{{ s.name | safe }}</a></li>{% endfor %}</ol>
+    </details>
+    <article>{{ guide_html | safe }}</article>
+  </main>
+
+  <aside class="panel" id="panel" aria-label="Video and questions">
+    <div class="player">
+      <iframe id="player" title="{{ meta.title }}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen
+        src="https://www.youtube-nocookie.com/embed/{{ meta.video_id }}?enablejsapi=1&rel=0&playsinline=1"></iframe>
+    </div>
+    <div class="ask-head">
+      <h2>Ask this video</h2>
+      <button class="quiet close-panel" type="button" aria-label="Close">Close</button>
+    </div>
+    <div class="thread" id="thread" aria-live="polite">
+      {% for item in qa %}{% include "_qa.html" %}{% endfor %}
+      <p class="hint" {% if qa %}hidden{% endif %}>Answers come only from this video and point to the moment they come from. Follow-up questions remember the conversation.</p>
+    </div>
+    <form class="ask-form" id="ask-form">
+      <textarea name="question" rows="2" required placeholder="Ask anything about this video" aria-label="Your question"></textarea>
+      <div class="row"><span>Enter to send, Shift+Enter for a new line</span><button class="primary" type="submit">Ask</button></div>
+    </form>
+  </aside>
+  <button class="primary open-panel" type="button">Watch and ask</button>
+</div>
+
+{% elif meta.step == "Failed" %}
+<div class="state">
+  <img src="https://i.ytimg.com/vi/{{ meta.video_id }}/hqdefault.jpg" alt="">
+  <h1>This guide didn't finish</h1>
+  <p class="muted">“{{ meta.prompt }}”</p>
+  <div class="error-box">Something went wrong while it was being made. Retrying usually works; if it keeps failing, the video may be private or have no captions.
+    <code>{{ meta.error }}</code></div>
+  <div class="actions">
+    <form method="post" action="retry"><button class="primary" type="submit">Try again</button></form>
+    <form method="post" action="delete"><button class="quiet" type="submit">Remove</button></form>
+  </div>
+</div>
+
+{% else %}
+<div class="state">
+  <img src="https://i.ytimg.com/vi/{{ meta.video_id }}/hqdefault.jpg" alt="">
+  <h1>{{ meta.title if meta.title != meta.url else "Making your guide" }}</h1>
+  <p class="muted">“{{ meta.prompt }}”</p>
+  <ol class="stages" id="stages">
+    {% for label in stages %}
+      <li class="{{ 'done' if loop.index < meta.stage else ('now' if loop.index == meta.stage or (meta.stage == 0 and loop.first) else '') }}">{{ label }}</li>
+    {% endfor %}
+  </ol>
+  <p class="muted">Long videos take a few minutes. You can leave this page; the guide keeps building and shows up in your library.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block script %}
+{% if guide_html %}
+<script>
+  const panel = document.getElementById("panel");
+  const player = document.getElementById("player");
+  const narrow = matchMedia("(max-width: 899px)");
+  const openPanel = () => panel.classList.add("open");
+  document.querySelector(".open-panel").onclick = openPanel;
+  document.querySelector(".close-panel").onclick = () => panel.classList.remove("open");
+
+  // timecode chips play that moment in the docked player instead of leaving the page (Cmd/Ctrl-click still opens YouTube)
+  let ready = false;
+  player.addEventListener("load", () => {
+    ready = true;
+    player.contentWindow.postMessage(JSON.stringify({ event: "listening" }), "*");
+  });
+  const command = (func, args = []) => player.contentWindow.postMessage(JSON.stringify({ event: "command", func, args }), "*");
+  function play(t) {
+    if (narrow.matches) openPanel();
+    if (ready) { command("seekTo", [t, true]); command("playVideo"); }
+    else player.src = player.src.replace(/&start=\d+|&autoplay=1/g, "") + `&start=${t}&autoplay=1`;
+  }
+  document.addEventListener("click", e => {
+    const a = e.target.closest("a.tc");
+    if (!a || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    e.preventDefault();
+    document.querySelectorAll("a.tc.playing").forEach(x => x.classList.remove("playing"));
+    a.classList.add("playing");
+    play(+a.dataset.t);
+  });
+
+  // highlight the section you're reading in the contents
+  const links = new Map([...document.querySelectorAll(".toc a")].map(a => [a.dataset.id, a]));
+  const spy = new IntersectionObserver(entries => entries.forEach(en => {
+    if (!en.isIntersecting) return;
+    links.forEach(a => a.classList.remove("here"));
+    links.get(en.target.id)?.classList.add("here");
+  }), { rootMargin: "-10% 0px -80% 0px" });
+  document.querySelectorAll("article h2[id]").forEach(h => spy.observe(h));
+
+  // ask without leaving the page
+  const form = document.getElementById("ask-form");
+  const thread = document.getElementById("thread");
+  const box = form.question;
+  box.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit(); }
+  });
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    const question = box.value.trim();
+    if (!question) return;
+    thread.querySelector(".hint").hidden = true;
+    const bubble = document.createElement("div");
+    bubble.className = "qa pending";
+    bubble.innerHTML = `<p class="q"></p><div class="a">Watching the video for the answer, usually 15–30 seconds</div>`;
+    bubble.querySelector(".q").textContent = question;
+    thread.append(bubble);
+    thread.scrollTop = thread.scrollHeight;
+    box.value = "";
+    form.querySelector("button").disabled = true;
+    try {
+      const res = await fetch("ask", { method: "POST", body: new URLSearchParams({ question }) });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || "Gemini couldn't answer this time. Try asking again.");
+      bubble.outerHTML = await res.text();
+    } catch (err) {
+      bubble.className = "qa error";
+      bubble.querySelector(".a").textContent = err.message;
+      box.value = question;
+    } finally {
+      form.querySelector("button").disabled = false;
+      thread.scrollTop = thread.scrollHeight;
+      box.focus();
+    }
+  });
+  thread.scrollTop = thread.scrollHeight;
+</script>
+{% else %}
+{% if meta.step != "Failed" %}
+<script>
+  // follow progress; reload when the guide is ready
+  const items = [...document.querySelectorAll("#stages li")];
+  setInterval(async () => {
+    try {
+      const s = await (await fetch("status")).json();
+      if (s.step === "Done" || s.step === "Failed") return location.reload();
+      items.forEach((li, i) => li.className = i + 1 < s.stage ? "done" : (i + 1 === Math.max(s.stage, 1) ? "now" : ""));
+    } catch { /* server restarting; try again next tick */ }
+  }, 3000);
+</script>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block style %}
+  .wrap { max-width: 880px; margin: 0 auto; padding: 40px 16px 80px; }
+  .brand { font-weight: 600; font-size: 15px; margin: 0 0 40px; display: flex; align-items: center; gap: 8px; }
+  .brand::before { content: ""; width: 18px; height: 12px; border-radius: 3px; background: var(--tc);
+    clip-path: polygon(0 0, 100% 50%, 0 100%); }
+  h1 { font-size: clamp(26px, 4vw, 34px); margin: 0 0 20px; max-width: 22ch; }
+  .new { display: grid; gap: 10px; }
+  .picks { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .picks span { font-size: 13px; color: var(--muted); margin-right: 2px; }
+  .picks button { padding: 7px 11px; font-size: 13px; border-radius: 999px; }
+  .picks button[aria-pressed="true"] { border-color: var(--tc); color: var(--tc); background: var(--tc-bg); }
+  .go { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .go small { color: var(--muted); }
+  h2 { font-size: 15px; margin: 56px 0 4px; padding-bottom: 12px; border-bottom: 1px solid var(--rule); display: flex; gap: 8px; }
+  h2 span { color: var(--muted); font-weight: 400; }
+  .row { display: grid; grid-template-columns: 168px 1fr auto; gap: 18px; padding: 18px 0; border-bottom: 1px solid var(--rule); position: relative; }
+  .hit { position: absolute; inset: 0; z-index: 1; border-radius: 6px; }
+  .remove { position: relative; z-index: 2; align-self: start; opacity: 0; transition: opacity .15s; }
+  .row:hover .remove, .remove:focus-within { opacity: 1; }
+  @media (hover: none) { .remove { opacity: 1; } }
+  .row:hover .title { color: var(--tc); }
+  .thumb { aspect-ratio: 16 / 9; border-radius: 6px; background: var(--panel) center / cover no-repeat; position: relative; }
+  .thumb b { position: absolute; right: 6px; bottom: 6px; font: 600 11px/1 var(--ui); font-variant-numeric: tabular-nums;
+    background: rgba(0, 0, 0, .75); color: #fff; padding: 3px 5px; border-radius: 3px; }
+  .title { font-weight: 600; font-size: 16px; line-height: 1.35; margin: 0 0 4px; }
+  .by, .ask, .stats { font-size: 14px; color: var(--muted); margin: 0; }
+  .ask { margin-top: 6px; font-family: var(--read); font-style: italic; }
+  .stats { margin-top: 8px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .live { color: var(--tc); }
+  .live::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: currentColor;
+    margin-right: 7px; vertical-align: 1px; animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  .failed { color: var(--warn); }
+  .empty { padding: 40px 0; color: var(--muted); }
+  @media (max-width: 560px) { .row { grid-template-columns: 112px 1fr auto; gap: 12px; } .remove button { padding: 6px 8px; } .title { font-size: 15px; } .ask { display: none; } }
+{% endblock %}
+
+{% block body %}
+<div class="wrap">
+  <p class="brand">Watchless</p>
+  <h1>Turn a YouTube video into a guide you can keep.</h1>
+
+  <form class="new" method="post" action="/new" onsubmit="this.querySelector('[type=submit]').disabled = true">
+    <input id="url" name="url" type="url" required {% if not prefill_url %}autofocus{% endif %} value="{{ prefill_url }}" placeholder="Paste a YouTube link" aria-label="YouTube link">
+    <textarea id="prompt" name="prompt" rows="2" {% if prefill_url %}autofocus{% endif %} placeholder="{{ default_prompt }}" aria-label="What do you want from it?"></textarea>
+    <div class="picks" role="group" aria-label="Suggestions">
+      <span>Try:</span>
+      {% for label, p in [("Step-by-step guide", "A detailed step-by-step guide, showing every screen"),
+                          ("Checklist", "A checklist I can follow while doing it myself"),
+                          ("Key takeaways", "The key ideas and takeaways, with examples"),
+                          ("Tools and prompts", "Every tool, setting and prompt mentioned, and what it's for")] %}
+        <button type="button" aria-pressed="false" data-prompt="{{ p }}" title="{{ p }}">{{ label }}</button>
+      {% endfor %}
+    </div>
+    <div class="go">
+      <small>Long videos take a few minutes. You can leave the page while it works.</small>
+      <button class="primary" type="submit">Make the guide</button>
+    </div>
+  </form>
+
+  <h2>Your guides <span>{{ guides | length }}</span></h2>
+  {% for g in guides %}
+    <div class="row" {% if g.step not in ("Done", "Failed") %}data-pending="{{ g.id }}"{% endif %}>
+    <a class="hit" href="/g/{{ g.id }}/" aria-label="Open {{ g.title }}"></a>
+      <div class="thumb" style="background-image: url('https://i.ytimg.com/vi/{{ g.video_id }}/mqdefault.jpg')">
+        {% if g.duration %}<b>{{ ts(g.duration) }}</b>{% endif %}
+      </div>
+      <div>
+        <p class="title">{{ g.title if g.title != g.url else "New guide" }}</p>
+        <p class="by">{{ g.channel or "" }}</p>
+        <p class="ask">“{{ g.prompt }}”</p>
+        <p class="stats">
+          {% if g.step == "Done" %}
+            <span>{{ g.n_steps }} steps</span>
+            <span>{% if g.n_ok == g.n_steps %}all quotes checked{% else %}{{ g.n_ok }} of {{ g.n_steps }} quotes checked{% endif %}</span>
+            <span>{{ g.n_shots }} screenshots</span>
+          {% elif g.step == "Failed" %}
+            <span class="failed">Didn't finish. Open it to retry.</span>
+          {% else %}
+            <span class="live" data-status>{{ g.step }}</span>
+          {% endif %}
+        </p>
+      </div>
+      <form class="remove" method="post" action="/g/{{ g.id }}/delete" onsubmit="return confirm('Remove this guide and its screenshots? This can\'t be undone.')">
+        <button class="quiet" type="submit" aria-label="Remove {{ g.title }}">Remove</button>
+      </form>
+    </div>
+  {% else %}
+    <p class="empty">Nothing here yet. Paste a link above to make your first guide.</p>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+  // suggestion chips fill the prompt box
+  const prompt = document.getElementById("prompt");
+  document.querySelectorAll(".picks button").forEach(b => b.addEventListener("click", () => {
+    prompt.value = b.dataset.prompt;
+    document.querySelectorAll(".picks button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    prompt.focus();
+  }));
+  prompt.addEventListener("input", () => document.querySelectorAll(".picks button").forEach(x => x.setAttribute("aria-pressed", x.dataset.prompt === prompt.value)));
+
+  // live progress for guides still being made
+  document.querySelectorAll("[data-pending]").forEach(row => {
+    const label = row.querySelector("[data-status]");
+    const timer = setInterval(async () => {
+      try {
+        const s = await (await fetch(`/g/${row.dataset.pending}/status`)).json();
+        if (s.step === "Done" || s.step === "Failed") { clearInterval(timer); if (!document.activeElement.closest("form")) location.reload(); else label.textContent = s.step === "Done" ? "Ready" : "Didn't finish"; }
+        else label.textContent = s.step;
+      } catch { /* server restarting; try again next tick */ }
+    }, 4000);
+  });
+</script>
+{% endblock %}

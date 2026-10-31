@@ -1,0 +1,22 @@
+[project]
+name = "watchless"
+version = "0.1.0"
+description = "Turn a YouTube video into a cited, screenshot-rich guide you can keep, and ask it questions."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.162.0",
+    "google-genai>=2.34.0",
+    "jinja2>=3.1.6",
+    "markdown>=3.11.2",
+    "pydantic>=2.14.2",
+    "python-multipart>=0.0.32",
+    "uvicorn>=0.54.0",
+    "yt-dlp>=2026.10.26",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
