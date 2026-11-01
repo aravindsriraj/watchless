@@ -34,7 +34,7 @@ It handles videos from a few minutes to 3+ hours. A 3-hour course takes about 4 
 
 ## Quick start
 
-You need [uv](https://docs.astral.sh/uv/getting-started/installation/), [ffmpeg](https://ffmpeg.org/download.html) (`brew install ffmpeg` on a Mac) and a [Gemini API key](https://aistudio.google.com/apikey).
+You need [uv](https://docs.astral.sh/uv/getting-started/installation/), [ffmpeg](https://ffmpeg.org/download.html) (`brew install ffmpeg` on a Mac), [Node.js](https://nodejs.org/) or [Deno](https://deno.com/) (YouTube needs one to hand out video streams, or screenshots fail) and a [Gemini API key](https://aistudio.google.com/apikey).
 
 ```sh
 git clone https://github.com/aravindsriraj/watchless.git

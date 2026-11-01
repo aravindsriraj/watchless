@@ -27,6 +27,9 @@
   .toc a:hover { background: var(--panel); color: var(--ink); }
   .toc a.here { color: var(--ink); background: var(--panel); box-shadow: inset 2px 0 0 var(--tc); }
   .toc small { display: block; margin-top: 3px; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .notice { max-width: 68ch; margin: 0 auto 32px; padding: 14px 16px; border-radius: 8px; background: var(--warn-bg); font-size: 15px; }
+  .notice p { margin: 0 0 10px; }
+  .notice code { display: block; margin: 0 0 12px; font-size: 12px; color: var(--muted); word-break: break-word; }
   .toc-inline { display: none; margin: 0 0 24px; border: 1px solid var(--rule); border-radius: 8px; padding: 10px 14px; }
   .toc-inline summary { cursor: pointer; font-weight: 500; }
   .toc-inline ol { margin: 8px 0 0; padding-left: 20px; line-height: 1.9; }
@@ -108,7 +111,7 @@
     article { font-size: 17px; }
   }
   @media print {
-    .bar, .toc, .toc-inline, .panel, .open-panel { display: none !important; }
+    .bar, .toc, .toc-inline, .panel, .open-panel, .notice { display: none !important; }
     .layout { display: block; } .read { padding: 0; } article { max-width: none; font-size: 11.5pt; }
     a.tc { background: none; padding: 0; color: #000; } a.tc::before { display: none; }
     article img { break-inside: avoid; } article h2 { break-after: avoid; }
@@ -154,6 +157,16 @@
   </nav>
 
   <main class="read">
+    {% if meta.missing_shots %}
+      <div class="notice">
+        <p><strong>{{ meta.missing_shots }} screenshot{{ "s" if meta.missing_shots > 1 }} couldn't be grabbed from YouTube.</strong>
+          The steps and quotes are fine. Getting them again usually works and takes a few seconds; it doesn't call Gemini.</p>
+        {% if meta.shot_error %}<code>{{ meta.shot_error }}</code>{% endif %}
+        <form method="post" action="screenshots" onsubmit="const b = this.querySelector('button'); b.disabled = true; b.textContent = 'Getting screenshots…';">
+          <button class="primary" type="submit">Get screenshots again</button>
+        </form>
+      </div>
+    {% endif %}
     <details class="toc-inline">
       <summary>Contents</summary>
       <ol>{% for s in toc %}<li><a href="#{{ s.id }}">{{ s.name | safe }}</a></li>{% endfor %}</ol>

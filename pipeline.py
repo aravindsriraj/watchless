@@ -158,18 +158,24 @@ def _ask_gemini_once(model, url, duration, text, schema, system, previous_id):
 # ---------- video metadata + captions ----------
 
 
+YDL_BASE = {
+    "quiet": True, "no_warnings": True, "noprogress": True,
+    # YouTube guards its streams with a JavaScript challenge. Without a runtime to solve it (plus the yt-dlp-ejs
+    # package), yt-dlp can hand back stream URLs that YouTube refuses, and every screenshot fails.
+    "js_runtimes": {"deno": {}, "node": {}, "bun": {}},
+}
+
+
 def fetch_video(url, out_dir):
     """Metadata + English captions (manual preferred, auto fallback) as [(start_s, text)]."""
     opts = {
+        **YDL_BASE,
         "skip_download": True,
         "writesubtitles": True,
         "writeautomaticsub": True,
         "subtitleslangs": ["en", "en-US", "en-GB", "en-orig"],
         "subtitlesformat": "json3",
         "outtmpl": str(out_dir / "captions.%(ext)s"),
-        "quiet": True,
-        "no_warnings": True,
-        "noprogress": True,
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=True)
@@ -231,25 +237,64 @@ def verify(items, cues):
 
 def stream_url(url):
     # ponytail: streams frames over HTTP instead of downloading; fall back to a full download if YouTube throttles range requests
-    with yt_dlp.YoutubeDL({"format": "bv*[height<=1080][ext=mp4]/bv*[height<=1080]/b", "quiet": True, "no_warnings": True}) as ydl:
+    with yt_dlp.YoutubeDL({**YDL_BASE, "format": "bv*[height<=1080][ext=mp4]/bv*[height<=1080]/b"}) as ydl:
         info = ydl.extract_info(url, download=False)
     return info["url"], info.get("http_headers", {})
 
 
 def grab_frame(src, headers, t_s, dest):
     """Most representative frame in a 3s window around t_s (ffmpeg's thumbnail filter skips blur/transition frames).
-    thumbnail=40 must be <= frames in the window (3s x fps), else ffmpeg exits 0 without writing anything."""
+    thumbnail=40 must be <= frames in the window (3s x fps), else ffmpeg exits 0 without writing anything.
+    Returns None on success, else what went wrong."""
     hdr = "".join(f"{k}: {v}\r\n" for k, v in headers.items())
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-headers", hdr, "-ss", str(max(0, t_s - 1.5)), "-i", src,
            "-t", "3", "-vf", "thumbnail=40", "-frames:v", "1", "-q:v", "3", str(dest)]
-    for attempt in range(3):  # YouTube sometimes refuses one of several parallel range requests
-        try:
-            if subprocess.run(cmd, capture_output=True, timeout=120).returncode == 0 and dest.exists():
-                return True
-        except subprocess.TimeoutExpired:
-            pass
-        time.sleep(2 * (attempt + 1))
-    return False
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        return "ffmpeg timed out reading the video stream"
+    if r.returncode == 0 and dest.exists():
+        return None
+    return (r.stderr.strip().splitlines() or ["ffmpeg wrote no frame"])[-1][:300]
+
+
+def take_screenshots(job, url, shots, duration):
+    """Grab every screenshot into job/images and set sh["file"] (None if it couldn't be grabbed).
+    Failures are retried with a freshly fetched stream URL: when YouTube refuses a stream URL,
+    every grab from it fails, so retrying the same URL never helps. Returns the last error, or None."""
+    clamp = lambda t: min(t, max(0, duration - 1))  # noqa: E731
+    todo, files, error = sorted({clamp(sh["t_s"]) for sh in shots}), {}, None
+    for attempt in range(3):
+        if not todo:
+            break
+        if attempt:
+            time.sleep(3 * attempt)
+        src, headers = stream_url(url)
+
+        def shoot(t):
+            name = f"shot_{t:05d}.jpg"
+            return t, name, grab_frame(src, headers, t, job / "images" / name)
+
+        with ThreadPoolExecutor(6) as pool:
+            results = list(pool.map(shoot, todo))
+        files.update({t: name for t, name, err in results if err is None})
+        failed = [(t, err) for t, _, err in results if err is not None]
+        todo, error = [t for t, _ in failed], (failed[-1][1] if failed else None)
+    for sh in shots:
+        sh["file"] = files.get(clamp(sh["t_s"]))
+    return error
+
+
+def retake_screenshots(job):
+    """Grab the screenshots a finished guide is missing (no Gemini call). Returns how many are still missing."""
+    meta, guide = read_json(job / "meta.json"), read_json(job / "guide.json")
+    missing = [sh for sec in guide["sections"] for sh in sec["screenshots"] if not sh.get("file")]
+    error = take_screenshots(job, meta["url"], missing, meta["duration"])
+    write_json(job / "guide.json", guide)
+    (job / "guide.md").write_text(guide_markdown(guide, meta))
+    still = sum(1 for sh in missing if not sh["file"])
+    set_meta(job, missing_shots=still, shot_error=error if still else None)
+    return still
 
 
 # ---------- markdown ----------
@@ -365,20 +410,11 @@ def run(job):
         shots = [sh for sec in guide["sections"] for sh in sec["screenshots"]]
         times = sorted({min(sh["t_s"], max(0, meta["duration"] - 1)) for sh in shots})
         set_meta(job, step=f"Grabbing {len(times)} screenshots", stage=4)
-        src, headers = stream_url(meta["url"])
-
-        def shoot(t):
-            name = f"shot_{t:05d}.jpg"
-            return t, name if grab_frame(src, headers, t, job / "images" / name) else None
-
-        with ThreadPoolExecutor(6) as pool:
-            files = dict(pool.map(shoot, times))
-        for sh in shots:
-            sh["file"] = files[min(sh["t_s"], max(0, meta["duration"] - 1))]
+        shot_error = take_screenshots(job, meta["url"], shots, meta["duration"])
 
         write_json(job / "guide.json", guide)
         (job / "guide.md").write_text(guide_markdown(guide, meta))
-        set_meta(job, step="Done", stage=5, missing_shots=sum(1 for sh in shots if not sh["file"]))
+        set_meta(job, step="Done", stage=5, missing_shots=sum(1 for sh in shots if not sh["file"]), shot_error=shot_error)
     except Exception as e:  # surface any failure on the page instead of a silent stuck job
         set_meta(job, step="Failed", error=f"{type(e).__name__}: {e}")
         raise

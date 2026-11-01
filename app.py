@@ -123,6 +123,19 @@ def ask(request: Request, job_id: str, question: str = Form(...)):
     return templates.TemplateResponse(request, "_qa.html", {"item": item, "meta": meta})
 
 
+@app.post("/g/{job_id}/screenshots")
+def screenshots(job_id: str):
+    """Re-grab only the missing screenshots of a finished guide; no Gemini call, takes seconds."""
+    job = job_dir(job_id)
+    if not (job / "guide.json").exists():
+        raise HTTPException(409, "The guide is still being made.")
+    try:
+        pipeline.retake_screenshots(job)
+    except Exception as e:  # e.g. YouTube refused the video; keep the reason visible on the page
+        pipeline.set_meta(job, shot_error=f"{type(e).__name__}: {e}")
+    return RedirectResponse(f"/g/{job_id}/", status_code=303)
+
+
 @app.post("/g/{job_id}/retry")
 def retry(background: BackgroundTasks, job_id: str):
     old = job_dir(job_id)
